@@ -1,8 +1,14 @@
-os
+streamlit
 pandas
+numpy
+plotly
+scikit-learn
+matplotlib
+seaborn
+scipy
+os
 zipfile
 PyPDF2
 spacy
 fuzzywuzzy
-streamlit
-shutil
+shutil  
