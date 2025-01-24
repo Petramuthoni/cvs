@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+matplotlib
+seaborn
+scipy
+PdfReader
+os
+zipfile
+PdfReader
+spacy
+fuzzywuzzy
+shutil
