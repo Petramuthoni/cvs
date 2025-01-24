@@ -9,7 +9,7 @@ scipy
 PdfReader
 os
 zipfile
-PdfReader
+PyPDF2
 spacy
 fuzzywuzzy
 shutil
