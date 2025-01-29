@@ -10,3 +10,4 @@ regex
 python-dateutil
 pillow
 gender-guesser
+openpyxl
