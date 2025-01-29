@@ -1,0 +1,12 @@
+streamlit
+pytesseract
+pdf2image
+PyPDF2
+gender-guesser
+transformers
+dateutil
+pandas
+numpy
+shutil
+re
+os
