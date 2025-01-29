@@ -1,8 +1,0 @@
-os
-pandas
-zipfile
-PyPDF2
-spacy
-fuzzywuzzy
-streamlit
-shutil
