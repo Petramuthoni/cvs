@@ -9,5 +9,4 @@ torch
 regex
 python-dateutil
 pillow
-shutil
 gender-guesser
