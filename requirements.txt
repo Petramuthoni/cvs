@@ -2,11 +2,12 @@ streamlit
 pytesseract
 pdf2image
 PyPDF2
-gender-guesser
-transformers
-dateutil
 pandas
 numpy
+transformers
+torch
+regex
+python-dateutil
+pillow
 shutil
-re
-os
+gender-guesser
