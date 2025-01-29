@@ -1,6 +1,6 @@
 import re
 import os
-import shutil
+#import shutil
 import pytesseract
 from pdf2image import convert_from_path
 from PyPDF2 import PdfReader
@@ -215,6 +215,6 @@ if st.button("Process CVs"):
             )
 
         # Cleanup
-        shutil.rmtree("temp")
+       # shutil.rmtree("temp")
     else:
         st.error("Please upload at least one CV file.")
