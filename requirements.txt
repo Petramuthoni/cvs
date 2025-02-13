@@ -1,13 +1,7 @@
 streamlit
-pytesseract
-pdf2image
-PyPDF2
+requests
 pandas
-numpy
-transformers
-torch
-regex
-python-dateutil
-pillow
-gender-guesser
 openpyxl
+xlsxwriter
+thefuzz
+python-Levenshtein
