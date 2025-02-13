@@ -1,19 +1,18 @@
-import re
-import os
-#import shutil
-import pytesseract
-from pdf2image import convert_from_path
-from PyPDF2 import PdfReader
-import gender_guesser.detector as gender_detector
-from transformers import pipeline
 import streamlit as st
-from dateutil import parser
+import requests
 import pandas as pd
-from datetime import datetime
+import base64
+from io import BytesIO
+import re
+from thefuzz import fuzz  # Fuzzy matching
 
-# Initialize NLP models and gender detector
-ner_pipeline = pipeline("ner", model="dbmdz/bert-large-cased-finetuned-conll03-english", grouped_entities=True)
-gender_detector = gender_detector.Detector()
+# RChilli API credentials
+RCHILLI_API_URL = "https://rest.rchilli.com/RChilliParser/Rchilli/parseResumeBinary"
+USER_KEY = "F7KNYZOZ"
+VERSION = "8.0.0"
+SUBSCRIPTION_ID = "petra kibugu"
+
+# Predefined Skills List
 SKILLS = [
     "Python", "Data Analysis", "Machine Learning", "Project Management", "Communication",
     "Health financing", "Health Insurance", "Health Economics",
@@ -27,194 +26,139 @@ SKILLS = [
     "Policy and Advocacy", "Human Resources for Health", "Communication and presentation"
 ]
 
-# Function to extract text from a single CV file
-def extract_text_from_file(file_path):
-    extracted_text = ""
-    if file_path.endswith(".pdf"):
-        reader = PdfReader(file_path)
-        for page in reader.pages:
-            text = page.extract_text()
-            if not text.strip():  # Fallback to OCR if text is empty
-                images = convert_from_path(file_path)
-                text = "".join([pytesseract.image_to_string(image) for image in images])
-            extracted_text += text
-    return extracted_text
+# Function to convert file to base64
+def encode_file_to_base64(file):
+    return base64.b64encode(file.read()).decode("utf-8")
 
-# Function to extract entities using the NLP model
-def extract_entities(text):
-    entities = ner_pipeline(text)
-    extracted = {"PER": [], "ORG": [], "LOC": [], "MISC": []}
-    for entity in entities:
-        entity_group = entity["entity_group"]
-        extracted[entity_group].append(entity["word"])
-    return extracted
-
-# Function to extract name from entities
-def extract_name(entities):
-    if "PER" in entities and entities["PER"]:
-        full_name = " ".join(entities["PER"]).strip()
-        if full_name.count(" ") > 1:
-            return " ".join(full_name.split()[:2])
-        return full_name
-    return "Unknown Applicant"
-
-# Function to infer gender from name
-def extract_gender(name):
-    first_name = name.split()[0] if name != "Unknown Applicant" else ""
-    gender = gender_detector.get_gender(first_name)
-    if gender in ["male", "female"]:
-        return gender.capitalize()
-    return "Not Specified"
-
-# Function to extract email from text
-def extract_email(text):
-    email_match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
-    if email_match:
-        return email_match.group(0)
-    return "Not Provided"
-
-# Function to extract highest education
-def extract_education(text):
-    education_section_pattern = r"(?i)education\s*(.*?)\s*(work experience|skills|$)"
-    match = re.search(education_section_pattern, text, re.DOTALL)
-    
-    if match:
-        education_section = match.group(1).strip()
-        lines = education_section.split("\n")
-        
-        # Define priority of education levels
-        education_levels = [
-            (r"\b(ph\.?d|doctorate)\b", "PhD/Doctorate"),
-            (r"\b(masters?|msc|m\.sc|ma|mba|mph|m\.eng|mtech|m\.tech|mcom)\b", "Master's"),
-            (r"\b(bachelors?|bsc|b\.sc|ba|bcom|btech|b\.tech|beng)\b", "Bachelor's")
-        ]
-        
-        # Iterate through lines and check for the highest degree with its domain
-        for pattern, degree_label in education_levels:
-            for line in lines:
-                if re.search(pattern, line, re.IGNORECASE):
-                    return f"{degree_label} {line.strip()}"  # Return full line for context
-        
-    return "Not Specified"
-
-# Function to extract the latest job position
-def extract_latest_job(cv_text):
-    work_section_pattern = r"(?i)(professional experience|work experience|employment history)\s*(.*?)(education|skills|$)"
-    match = re.search(work_section_pattern, cv_text, re.DOTALL)
-    if match:
-        work_section = match.group(2).strip()
-        lines = work_section.split("\n")
-        for line in lines:
-            if line.strip():
-                return line.strip()
-    return "Not Specified"
-
-# Function to calculate total years of experience
-def extract_experience(cv_text):
-    # Extract the work experience section and stop at common headings
-    work_section_pattern = r"(?i)(?:professional experience|work experience|employment history)\s*(.*?)(?:education|skills|certifications|referees|projects|$)"
-    match = re.search(work_section_pattern, cv_text, re.DOTALL)
-    
-    if match:
-        work_section = match.group(1).strip()  # Extract work experience text
-        
-        # Regex pattern to capture start years in job date ranges
-        experience_pattern = r"(\b\w+\s\d{4})\s*[-–]\s*(?:\b(?:\w+\s\d{4}|Present|To Date))"
-        matches = re.findall(experience_pattern, work_section)
-
-        if matches:
-            try:
-                # Convert all start dates to years and find the earliest one
-                start_years = [parser.parse(date).year for date in matches]
-                earliest_year = min(start_years)
-                current_year = datetime.now().year
-                
-                # Calculate total years of experience
-                total_experience = current_year - earliest_year
-                return total_experience if total_experience > 0 else "Not Specified"
-            
-            except Exception as e:
-                print(f"Error parsing dates: {e}")
-    
-    return "Not Specified"
-
-
-
-# Function to extract skills
-def extract_skills(cv_text):
-    cv_tokens = cv_text.lower().split()  # Tokenize CV text
-    matched_skills = {}
-    for skill in SKILLS:
-        skill_tokens = skill.lower().split()
-        if all(token in cv_tokens for token in skill_tokens):  # Match all skill tokens
-            matched_skills[skill] = "✔"
-        else:
-            matched_skills[skill] = "✘"
-
-    return matched_skills
-
-# Function to process individual CV text
-def process_cv_text(cv_text):
-    entities = extract_entities(cv_text)
-    name = extract_name(entities)
-    gender = extract_gender(name)
-    #email = extract_email(cv_text)
-    education = extract_education(cv_text)
-    latest_job = extract_latest_job(cv_text)
-    experience = extract_experience(cv_text)
-    skills = extract_skills(cv_text)
-
-    result = {
-        "Full Name": name,
-        "Gender": gender,
-        #"Email": email,
-        "Highest Education": education,
-        "Latest Job Position": latest_job,
-        "Total Years of Experience": experience,
+# Function to parse CV using RChilli
+def parse_resume(file):
+    file_base64 = encode_file_to_base64(file)
+    payload = {
+        "filedata": file_base64,
+        "filename": file.name,
+        "userkey": USER_KEY,
+        "version": VERSION,
+        "subuserid": SUBSCRIPTION_ID
     }
-    result.update(skills)  # Add skill matches to the result
-    return result
+    
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(RCHILLI_API_URL, json=payload, headers=headers)
 
-# Function to process uploaded CVs
-def process_cvs(uploaded_files):
-    rows = []
-    for uploaded_file in uploaded_files:
-        file_path = os.path.join("temp", uploaded_file.name)
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.read())
-
-        cv_text = extract_text_from_file(file_path)
-        rows.append(process_cv_text(cv_text))
-
-        os.remove(file_path)
-    return pd.DataFrame(rows)
-
-# Streamlit App
-st.title("CV Processing App")
-st.write("Upload CVs in PDF format to extract and analyze applicant information.")
-
-uploaded_files = st.file_uploader("Upload CVs", type=["pdf"], accept_multiple_files=True)
-
-if st.button("Process CVs"):
-    if uploaded_files:
-        os.makedirs("temp", exist_ok=True)
-        with st.spinner("Processing files..."):
-            df = process_cvs(uploaded_files)
-        st.success("Processing complete!")
-        st.write(df)
-
-        # Save to Excel
-        output_path = "cv_analysis_with_skills.xlsx"
-        df.to_excel(output_path, index=False)
-        with open(output_path, "rb") as f:
-            st.download_button(
-                label="Download Excel File",
-                data=f,
-                file_name="cv_analysis_with_skills.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-        # Cleanup
-       # shutil.rmtree("temp")
+    if response.status_code == 200:
+        return response.json()
     else:
-        st.error("Please upload at least one CV file.")
+        st.error(f"Failed to parse CV. API Response: {response.text}")
+        return None
+
+# Function to extract required fields
+def extract_fields(parsed_data):
+    if not parsed_data or "ResumeParserData" not in parsed_data:
+        return None
+
+    resume_data = parsed_data["ResumeParserData"]
+    
+    # Extract Name
+    name = resume_data.get("Name", {}).get("FormattedName", "N/A")
+
+    # Extract Current Job Role
+    current_job_role = resume_data.get("JobProfile", "N/A")
+
+    # Extract Total Years of Experience
+    total_years_experience = resume_data.get("WorkedPeriod", {}).get("TotalExperienceInYear", "N/A")
+
+    # Extract Highest Level of Education
+    highest_education = "N/A"
+    if "SegregatedQualification" in resume_data and isinstance(resume_data["SegregatedQualification"], list):
+        highest_education = resume_data["SegregatedQualification"][0].get("Degree", {}).get("DegreeName", "N/A")
+
+    # Extract skills from both SkillBlock and SkillKeywords
+    extracted_skills = set()
+
+    # Process SkillBlock
+    if "SkillBlock" in resume_data:
+        skill_text = resume_data["SkillBlock"]
+        extracted_skills.update(
+            skill.strip().lower()
+            for skill in re.split(r"[•,;|\n]", skill_text) if skill.strip()
+        )
+
+    # Process SkillKeywords
+    if "SkillKeywords" in resume_data:
+        keyword_text = resume_data["SkillKeywords"]
+        extracted_skills.update(
+            skill.strip().lower()
+            for skill in keyword_text.split(",") if skill.strip()
+        )
+
+    # Function for fuzzy skill matching
+    def is_skill_match(skill):
+        for extracted_skill in extracted_skills:
+            if fuzz.partial_ratio(skill.lower(), extracted_skill) > 80:  # 80% similarity threshold
+                return "✔"
+        return "✘"
+
+    # Match predefined skills using fuzzy matching
+    skills_match = {skill: is_skill_match(skill) for skill in SKILLS}
+
+    # Return extracted data with skills match results
+    return {
+        "Name": name,
+        "Highest Education": highest_education,
+        "Current Job Role": current_job_role,
+        "Total Years of Experience": total_years_experience,
+        **skills_match  # Add all skill columns dynamically
+    }
+
+# Streamlit UI
+st.title("CV Parser")
+
+# User input fields
+employee_no = st.text_input("Employee No:")
+gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+department = st.text_input("Department/Programme:")
+country = st.text_input("Country:")
+nationality = st.text_input("Nationality:")
+
+uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"])
+
+if uploaded_file:
+    st.info("Processing the CV...")
+    parsed_data = parse_resume(uploaded_file)
+    extracted_data = extract_fields(parsed_data)
+    
+    if extracted_data:
+        # Add user input fields to extracted data
+        extracted_data.update({
+            "Employee No": employee_no,
+            "Gender": gender,
+            "Department/Programme": department,
+            "Country": country,
+            "Nationality": nationality
+        })
+
+        # Define column order (including skills)
+        column_order = [
+            "Employee No", "Name", "Gender", "Department/Programme", 
+            "Country", "Nationality", "Highest Education", 
+            "Current Job Role", "Total Years of Experience"
+        ] + SKILLS  # Append skill columns
+
+        # Convert to DataFrame and reorder columns
+        df = pd.DataFrame([extracted_data])[column_order]
+
+        # Display extracted data
+        st.write("### Extracted Information")
+        st.dataframe(df)
+
+        # Convert to Excel
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Parsed Data')
+        output.seek(0)
+        
+        st.download_button(
+            label="Download Excel File",
+            data=output,
+            file_name="parsed_cv.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
