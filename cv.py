@@ -26,6 +26,18 @@ SKILLS = [
     "Policy and Advocacy", "Human Resources for Health", "Communication and presentation"
 ]
 
+COUNTRY_OPTIONS = [
+    "AFD", "AHI", "ETHIOPIA", "FMD", "HQ", "ITALY", "KCO", 
+    "MALAWI", "SENEGAL", "SOUTH SUDAN", "TANZANIA", "UGANDA", "ZAMBIA"
+]
+
+DEPARTMENT_OPTIONS = ["Public Health & Programs","Health Systems Strengthening","Climate & Health","Social Determinants of Health","Digital Health & Data",
+"Monitoring, Evaluation & Learning","Research Development & Innovation","Partnerships & External Affairs","Business Development","Fundraising","Advocacy & Policy","Communications","ICT","People & Culture (HR)","Finance & Operations","Procurement & Administration","Audit & Compliance"]
+ 
+
+
+PROFICIENCY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
+
 # Function to convert file to base64
 def encode_file_to_base64(file):
     return base64.b64encode(file.read()).decode("utf-8")
@@ -113,13 +125,20 @@ def extract_fields(parsed_data):
 st.title("CV Parser")
 
 # User input fields
-employee_no = st.text_input("Employee No:")
-gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-department = st.text_input("Department/Programme:")
-country = st.text_input("Country:")
-nationality = st.text_input("Nationality:")
+col1, col2 = st.columns([2, 2])
 
-uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"])
+with col1:
+    employee_no = st.text_input("Employee No:")
+    gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+    department = st.selectbox("Select Department/Programme", DEPARTMENT_OPTIONS)
+    country = st.selectbox("Select Country", COUNTRY_OPTIONS)
+    nationality = st.text_input("Nationality:")
+    uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"])
+
+
+with col2:
+    selected_skills = st.multiselect("Select up to 5 skills", SKILLS, max_selections=5)
+    skill_proficiency = {skill: st.selectbox(f"{skill} Proficiency", PROFICIENCY_LEVELS) for skill in selected_skills}
 
 if uploaded_file:
     st.info("Processing the CV...")
@@ -127,7 +146,6 @@ if uploaded_file:
     extracted_data = extract_fields(parsed_data)
     
     if extracted_data:
-        # Add user input fields to extracted data
         extracted_data.update({
             "Employee No": employee_no,
             "Gender": gender,
@@ -135,21 +153,24 @@ if uploaded_file:
             "Country": country,
             "Nationality": nationality
         })
+        
+        # Add selected skills proficiency
+        for skill, level in skill_proficiency.items():
+            extracted_data[f"{skill} Proficiency"] = level
 
-        # Define column order (including skills)
+        # Define column order
         column_order = [
             "Employee No", "Name", "Gender", "Department/Programme", 
             "Country", "Nationality", "Highest Education", 
             "Current Job Role", "Total Years of Experience"
-        ] + SKILLS  # Append skill columns
-
-        # Convert to DataFrame and reorder columns
+        ] + SKILLS + [f"{skill} Proficiency" for skill in selected_skills]
+        
         df = pd.DataFrame([extracted_data])[column_order]
 
         # Display extracted data
         st.write("### Extracted Information")
         st.dataframe(df)
-
+        
         # Convert to Excel
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
