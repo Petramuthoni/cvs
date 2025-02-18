@@ -31,10 +31,25 @@ COUNTRY_OPTIONS = [
     "MALAWI", "SENEGAL", "SOUTH SUDAN", "TANZANIA", "UGANDA", "ZAMBIA"
 ]
 
+NATIONALITY_OPTIONS = [
+    "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Antiguan and Barbudan", "Argentine", "Armenian", "Australian", "Austrian", "Azerbaijani",
+    "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese", "Bolivian", "Bosnian and Herzegovinian", "Botswanan", "Brazilian",
+    "British", "Bruneian", "Bulgarian", "Burkinabé", "Burmese", "Burundian", "Cabo Verdean", "Cambodian", "Cameroonian", "Canadian", "Central African", "Chadian", "Chilean",
+    "Chinese", "Colombian", "Comoran", "Congolese", "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djiboutian", "Dominican", "Dutch", "Ecuadorian", "Egyptian",
+    "Salvadoran", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Finnish", "French", "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek",
+    "Grenadian", "Guatemalan", "Guinean", "Guyanese", "Haitian", "Honduran", "Hungarian", "Icelandic", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli", "Italian",
+    "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakhstani", "Kenyan", "Kiribati", "Kuwaiti", "Kyrgyzstani", "Lao", "Latvian", "Lebanese", "Lesotho", "Liberian", "Libyan",
+    "Liechtenstein", "Lithuanian", "Luxembourgish", "Macedonian", "Malagasy", "Malawian", "Malaysian", "Maldivian", "Malian", "Maltese", "Marshallese", "Mauritanian", "Mauritian",
+    "Mexican", "Micronesian", "Moldovan", "Monacan", "Mongolian", "Montenegrin", "Moroccan", "Mozambican", "Namibian", "Nauruan", "Nepalese", "New Zealander", "Nicaraguan", "Nigerien",
+    "Nigerian", "North Korean", "Norwegian", "Omani", "Pakistani", "Palauan", "Palestinian", "Panamanian", "Papua New Guinean", "Paraguayan", "Peruvian", "Filipino", "Polish", "Portuguese",
+    "Qatari", "Romanian", "Russian", "Rwandan", "Saint Lucian", "Samoan", "Saudi", "Senegalese", "Serbian", "Seychellois", "Singaporean", "Slovak", "Slovenian", "Solomon Islander", "Somali",
+    "South African", "South Korean", "South Sudanese", "Spanish", "Sri Lankan", "Sudanese", "Surinamese", "Swazi", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian", "Thai",
+    "Timorese", "Togolese", "Tongan", "Trinidadian and Tobagonian", "Tunisian", "Turkish", "Turkmen", "Tuvaluan", "Ugandan", "Ukrainian", "Emirati", "Uruguayan", "Uzbek", "Vanuatuan",
+    "Venezuelan", "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
+]
+
 DEPARTMENT_OPTIONS = ["Public Health & Programs","Health Systems Strengthening","Climate & Health","Social Determinants of Health","Digital Health & Data",
 "Monitoring, Evaluation & Learning","Research Development & Innovation","Partnerships & External Affairs","Business Development","Fundraising","Advocacy & Policy","Communications","ICT","People & Culture (HR)","Finance & Operations","Procurement & Administration","Audit & Compliance"]
- 
-
 
 PROFICIENCY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
@@ -129,17 +144,21 @@ col1, col2 = st.columns([2, 2])
 
 with col1:
     employee_no = st.text_input("Employee No:")
-    gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-    department = st.selectbox("Select Department/Programme", DEPARTMENT_OPTIONS)
-    country = st.selectbox("Select Country", COUNTRY_OPTIONS)
-    nationality = st.text_input("Nationality:")
-    uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"])
-
+    gender = st.selectbox("Gender", ["Male", "Female"], index=None, placeholder="Select Gender")
+    department = st.selectbox("Select Department/Programme", DEPARTMENT_OPTIONS, index=None, placeholder="Select Department")
+    country = st.selectbox("Select Country", COUNTRY_OPTIONS, index=None, placeholder="Select Country")
+    nationality = st.selectbox("Select Nationality", NATIONALITY_OPTIONS, index=None, placeholder="Select Nationality")
+    
+# Disable file uploader until all fields are filled
+upload_disabled = not all([employee_no, gender, department, country, nationality])
 
 with col2:
     selected_skills = st.multiselect("Select up to 5 skills", SKILLS, max_selections=5)
     skill_proficiency = {skill: st.selectbox(f"{skill} Proficiency", PROFICIENCY_LEVELS) for skill in selected_skills}
 
+    uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"], disabled=upload_disabled)
+
+# Handle CV processing if uploaded
 if uploaded_file:
     st.info("Processing the CV...")
     parsed_data = parse_resume(uploaded_file)
