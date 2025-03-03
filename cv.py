@@ -4,6 +4,7 @@ import pandas as pd
 import base64
 from io import BytesIO
 import re
+import os
 from thefuzz import fuzz  # Fuzzy matching
 
 # RChilli API credentials
@@ -135,6 +136,31 @@ def extract_fields(parsed_data):
         "Total Years of Experience": total_years_experience,
         **skills_match  # Add all skill columns dynamically
     }
+# Define a folder that Streamlit always has access to
+UPLOADS_DIR = "C:/StreamlitUploads"  # Windows path
+# UPLOADS_DIR = "/home/user/streamlit_uploads"  # Linux/Mac path
+
+# Ensure the uploads directory exists with proper permissions
+if not os.path.exists(UPLOADS_DIR):
+    os.makedirs(UPLOADS_DIR, exist_ok=True)  # Ensure it's created
+
+def save_uploaded_file(uploaded_file):
+    """Save the uploaded file in the dedicated uploads folder."""
+    file_path = os.path.join(UPLOADS_DIR, uploaded_file.name)  # Save path
+
+    try:
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())  # Save the file
+        return file_path
+    except PermissionError:
+        st.error(f"Permission denied: Unable to save file to {file_path}. Check folder permissions.")
+        return None
+
+# Function to generate a valid Excel hyperlink
+def generate_download_link(file_path):
+    file_path = file_path.replace("\\", "/")  # Ensure Excel reads it correctly
+    file_name = os.path.basename(file_path)
+    return f'=HYPERLINK("{file_path}", "{file_name}")'
 
 # Streamlit UI
 st.title("CV Parser")
@@ -163,6 +189,8 @@ if uploaded_file:
     st.info("Processing the CV...")
     parsed_data = parse_resume(uploaded_file)
     extracted_data = extract_fields(parsed_data)
+    file_path = save_uploaded_file(uploaded_file)
+    download_link = generate_download_link(file_path)
     
     if extracted_data:
         extracted_data.update({
@@ -170,7 +198,8 @@ if uploaded_file:
             "Gender": gender,
             "Department/Programme": department,
             "Country": country,
-            "Nationality": nationality
+            "Nationality": nationality,
+            "Resume": download_link
         })
         
         # Add selected skills proficiency
@@ -179,26 +208,30 @@ if uploaded_file:
 
         # Define column order
         column_order = [
-            "Employee No", "Name", "Gender", "Department/Programme", 
+            "Resume","Employee No", "Name", "Gender", "Department/Programme", 
             "Country", "Nationality", "Highest Education", 
             "Current Job Role", "Total Years of Experience"
-        ] + SKILLS + [f"{skill} Proficiency" for skill in selected_skills]
+        ] + [f"{skill} Proficiency" for skill in selected_skills] + SKILLS 
         
         df = pd.DataFrame([extracted_data])[column_order]
 
         # Display extracted data
         st.write("### Extracted Information")
         st.dataframe(df)
+        #st.write(df.to_html(escape=False), unsafe_allow_html=True) 
         
         # Convert to Excel
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Parsed Data')
-        output.seek(0)
+        csv_file_path = os.path.abspath("Parsed_CV.csv")
+        df.to_csv(csv_file_path, index=False, header=True, encoding="utf-8-sig")
+        with open (csv_file_path, "rb") as f:
+            csv_bytes = f.read()
+            
+       
+            
         
         st.download_button(
             label="Download Excel File",
-            data=output,
-            file_name="parsed_cv.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            data=csv_bytes,
+            file_name="Parsed_CV.csv",
+            mime="text/csv"
         )
