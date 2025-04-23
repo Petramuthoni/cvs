@@ -136,7 +136,7 @@ def push_to_webhook(data_row):
         #print(json.dumps(data_row, indent=2))
         response = requests.post(WEBHOOK_URL, json=data_row, headers=headers)
         if response.status_code in [200, 201]:
-            st.success("Data sent to CRM webhook successfully!")
+            st.success("Data saved in CRM successfully!")
         else:
             st.error(f"Webhook error: {response.status_code} - {response.text}")
     except Exception as e:
