@@ -44,9 +44,10 @@ NATIONALITY_OPTIONS = [
     "Venezuelan", "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
 ]
 DEPARTMENT_OPTIONS = [
-    "Advocacy & Policy", "Audit & Compliance","Business Development","Climate & Health","Communications","Digital Health & Data","Finance & Operations",
-    "Fundraising","Health Systems Strengthening","ICT","Monitoring, Evaluation & Learning","Partnerships & External Affairs", "People & Culture (HR)",
-    "Procurement & Administration","Public Health & Programs","Research Development & Innovation","Social Determinants of Health"
+    "Advocacy & Policy", "Audit & Compliance", "Business Development", "Climate & Health", "Communications",
+    "Digital Health & Data", "Finance & Operations", "Fundraising", "Health Systems Strengthening", "ICT",
+    "Monitoring, Evaluation & Learning", "Partnerships & External Affairs", "People & Culture (HR)",
+    "Procurement & Administration", "Public Health & Programs", "Research Development & Innovation", "Social Determinants of Health"
 ]
 PROFICIENCY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
@@ -150,7 +151,7 @@ upload_disabled = not all([employee_no, gender, department, country, nationality
 
 with col2:
     selected_skills = st.multiselect("Select up to 5 skills", SKILLS, max_selections=5)
-    skill_proficiency = {skill: st.selectbox(f"{skill} Proficiency", PROFICIENCY_LEVELS) for skill in selected_skills}
+    skill_proficiency = {skill: st.selectbox(f"{skill} Proficiency", PROFICIENCY_LEVELS, key=skill) for skill in selected_skills}
     uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"], disabled=upload_disabled)
 
 if uploaded_file:
@@ -170,22 +171,17 @@ if uploaded_file:
             "Resume": download_link
         })
 
-        # Update Skill Proficiency as array of objects
-        nested_proficiency = [
-            {"name": skill, "proficiency": level}
-            for skill, level in skill_proficiency.items()
-        ]
+        nested_proficiency = [{"name": skill, "proficiency": level} for skill, level in skill_proficiency.items()]
         extracted_data["Skill_Proficiency"] = nested_proficiency
 
-        # Prepare display data with proficiency fields for table
+        # Prepare DataFrame display
         display_data = extracted_data.copy()
-        if "Skill Proficiency" in display_data:
-            for item in display_data["Skill_Proficiency"]:
-                display_data[f"{item['name']} Proficiency"] = item["proficiency"]
+        for item in nested_proficiency:
+            display_data[f"{item['name']} Proficiency"] = item["proficiency"]
 
         column_order = [
-            "Resume", "Employee No", "Name", "Gender", "Department/Programme",
-            "Country", "Nationality", "Highest Education", "Current Job Role", "Total Years of Experience"
+            "Resume", "Employee No", "Name", "Gender", "Department/Programme", "Country", "Nationality",
+            "Highest Education", "Current Job Role", "Total Years of Experience"
         ] + [f"{skill} Proficiency" for skill in selected_skills] + SKILLS
 
         df = pd.DataFrame([display_data])
@@ -197,15 +193,14 @@ if uploaded_file:
         st.write("### Extracted Information")
         st.dataframe(df)
 
+        # Push to CRM webhook
         #st.subheader("📦 JSON Payload Preview")
         #st.json(extracted_data)
-
         push_to_webhook(extracted_data)
 
-        # Download CSV
+        # CSV download
         csv_file_path = os.path.abspath("Parsed_CV.csv")
         df.to_csv(csv_file_path, index=False, header=True, encoding="utf-8-sig")
         with open(csv_file_path, "rb") as f:
             csv_bytes = f.read()
-
         st.download_button("Download Excel File", data=csv_bytes, file_name="Parsed_CV.csv", mime="text/csv")
