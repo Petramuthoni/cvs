@@ -5,8 +5,6 @@ import base64
 from io import BytesIO
 import re
 import os
-#import logging
-#import json
 from thefuzz import fuzz  # Fuzzy matching
 
 # ---------------------- RChilli Config ----------------------
@@ -16,8 +14,8 @@ VERSION = "8.0.0"
 SUBSCRIPTION_ID = "petra kibugu"
 
 # ---------------------- Webhook Config ----------------------
-#WEBHOOK_URL = "https://yourdomain.com/api/receiveCV"  # 🔁 Replace with actual webhook URL
-WEBHOOK_URL = "https://prod-186.westeurope.logic.azure.com:443/workflows/48a27f0ee7ae48c7b74600725ff9d823/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=smEXR63w3emvWl-zPwG-9z0PG8YK7JTS3I9TVk3KqyA"  # 🔁 Replace with actual webhook URL
+WEBHOOK_URL = "https://prod-186.westeurope.logic.azure.com:443/workflows/48a27f0ee7ae48c7b74600725ff9d823/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=smEXR63w3emvWl-zPwG-9z0PG8YK7JTS3I9TVk3KqyA"
+
 # ---------------------- Options ----------------------
 SKILLS =[
     "Capacity Building","Climate Health","Communication","Communication and presentation","Computer Science","Data Analysis","Data Science","Finance, Accounting","Financial Management","Fundraising & Strategic Partnership","Gender and social inclusion","General Management","Grant and contracts management", "Health Economics","Health Insurance","Health Systems Strengthening","Health financing","HR Management & Expertise","Human Resources for Health",
@@ -25,9 +23,8 @@ SKILLS =[
     "Monitoring, Evaluation and Learning","Multi-stakeholder coordination","Policy and Advocacy","Programming","Project Management","Python",
     "Quality Improvement","Quantitative research and implementation","RMNCH","Research and data analysis","Software Development"
 ]
-
 COUNTRY_OPTIONS = [
-    "AFD", "AHI", "ETHIOPIA", "FMD", "HQ", "ITALY", "KCO", 
+    "AFD", "AHI", "ETHIOPIA", "FMD", "HQ", "ITALY", "KCO",
     "MALAWI", "SENEGAL", "SOUTH SUDAN", "TANZANIA", "UGANDA", "ZAMBIA"
 ]
 NATIONALITY_OPTIONS = [
@@ -46,8 +43,11 @@ NATIONALITY_OPTIONS = [
     "Timorese", "Togolese", "Tongan", "Trinidadian and Tobagonian", "Tunisian", "Turkish", "Turkmen", "Tuvaluan", "Ugandan", "Ukrainian", "Emirati", "Uruguayan", "Uzbek", "Vanuatuan",
     "Venezuelan", "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
 ]
-DEPARTMENT_OPTIONS = ["Public Health & Programs","Health Systems Strengthening","Climate & Health","Social Determinants of Health","Digital Health & Data",
-"Monitoring, Evaluation & Learning","Research Development & Innovation","Partnerships & External Affairs","Business Development","Fundraising","Advocacy & Policy","Communications","ICT","People & Culture (HR)","Finance & Operations","Procurement & Administration","Audit & Compliance"]
+DEPARTMENT_OPTIONS = [
+    "Advocacy & Policy", "Audit & Compliance","Business Development","Climate & Health","Communications","Digital Health & Data","Finance & Operations",
+    "Fundraising","Health Systems Strengthening","ICT","Monitoring, Evaluation & Learning","Partnerships & External Affairs", "People & Culture (HR)",
+    "Procurement & Administration","Public Health & Programs","Research Development & Innovation","Social Determinants of Health"
+]
 PROFICIENCY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
 # ---------------------- Utility Functions ----------------------
@@ -124,16 +124,9 @@ def generate_download_link(file_path):
     file_path = file_path.replace("\\", "/")
     return f'=HYPERLINK("{file_path}", "{os.path.basename(file_path)}")'
 
-# ---------------------- Webhook Push Function ----------------------
 def push_to_webhook(data_row):
-    headers = {
-        "Content-Type": "application/json",
-        # "Authorization": "Bearer YOUR_WEBHOOK_TOKEN",  # Uncomment if needed
-    }
-
+    headers = {"Content-Type": "application/json"}
     try:
-       # print("Sending the following JSON to the webhook:")
-        #print(json.dumps(data_row, indent=2))
         response = requests.post(WEBHOOK_URL, json=data_row, headers=headers)
         if response.status_code in [200, 201]:
             st.success("Data saved in CRM successfully!")
@@ -176,25 +169,40 @@ if uploaded_file:
             "Nationality": nationality,
             "Resume": download_link
         })
-        for skill, level in skill_proficiency.items():
-            extracted_data[f"{skill} Proficiency"] = level
+
+        # Update Skill Proficiency as array of objects
+        nested_proficiency = [
+            {"name": skill, "proficiency": level}
+            for skill, level in skill_proficiency.items()
+        ]
+        extracted_data["Skill_Proficiency"] = nested_proficiency
+
+        # Prepare display data with proficiency fields for table
+        display_data = extracted_data.copy()
+        if "Skill Proficiency" in display_data:
+            for item in display_data["Skill_Proficiency"]:
+                display_data[f"{item['name']} Proficiency"] = item["proficiency"]
 
         column_order = [
             "Resume", "Employee No", "Name", "Gender", "Department/Programme",
             "Country", "Nationality", "Highest Education", "Current Job Role", "Total Years of Experience"
         ] + [f"{skill} Proficiency" for skill in selected_skills] + SKILLS
 
-        df = pd.DataFrame([extracted_data])[column_order]
+        df = pd.DataFrame([display_data])
+        for col in column_order:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[column_order]
 
         st.write("### Extracted Information")
         st.dataframe(df)
 
-        # 🚀 Automatically push to CRM Webhook
-       # st.subheader("📦 JSON Payload Preview")
-        #st.json(extracted_data)  
+        #st.subheader("📦 JSON Payload Preview")
+        #st.json(extracted_data)
+
         push_to_webhook(extracted_data)
 
-        # 💾 Download button
+        # Download CSV
         csv_file_path = os.path.abspath("Parsed_CV.csv")
         df.to_csv(csv_file_path, index=False, header=True, encoding="utf-8-sig")
         with open(csv_file_path, "rb") as f:
