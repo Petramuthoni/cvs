@@ -56,7 +56,9 @@ def encode_file_to_base64(file):
     return base64.b64encode(file.read()).decode("utf-8")
 
 def parse_resume(file):
+    file.seek(0)
     file_base64 = encode_file_to_base64(file)
+    file.seek(0)
     payload = {
         "filedata": file_base64,
         "filename": file.name,
@@ -125,12 +127,16 @@ def generate_download_link(file_path):
     file_path = file_path.replace("\\", "/")
     return f'=HYPERLINK("{file_path}", "{os.path.basename(file_path)}")'
 
-def push_to_webhook(data_row):
-    headers = {"Content-Type": "application/json"}
+def push_to_webhook(data_row, uploaded_file):
     try:
+        uploaded_file.seek(0)
+        file_base64 = base64.b64encode(uploaded_file.read()).decode("utf-8")
+        data_row["cv_file_base64"] = file_base64
+        data_row["cv_file_name"] = uploaded_file.name
+        headers = {"Content-Type": "application/json"}
         response = requests.post(WEBHOOK_URL, json=data_row, headers=headers)
         if response.status_code in [200, 201]:
-            st.success("Data saved in CRM successfully!")
+            st.success("Data and CV saved in CRM successfully!")
         else:
             st.error(f"Webhook error: {response.status_code} - {response.text}")
     except Exception as e:
@@ -193,10 +199,12 @@ if uploaded_file:
         st.write("### Extracted Information")
         st.dataframe(df)
 
-        # Push to CRM webhook
+        # Push to CRM webhook with file as Base64
+        
+        
+        push_to_webhook(extracted_data, uploaded_file)
         #st.subheader("📦 JSON Payload Preview")
         #st.json(extracted_data)
-        push_to_webhook(extracted_data)
 
         # CSV download
         csv_file_path = os.path.abspath("Parsed_CV.csv")
