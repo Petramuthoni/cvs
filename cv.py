@@ -197,8 +197,8 @@ if uploaded_file:
         st.write("### Extracted Information")
         st.dataframe(df)
 
-        st.subheader("📦 JSON Payload Preview")
-        st.json(extracted_data)
+        #st.subheader("📦 JSON Payload Preview")
+        #st.json(extracted_data)
 
         push_to_webhook(extracted_data)
 
