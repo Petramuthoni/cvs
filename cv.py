@@ -6,6 +6,8 @@ from io import BytesIO
 import re
 import os
 from thefuzz import fuzz  # Fuzzy matching
+from datetime import datetime
+import time
 
 # ---------------------- RChilli Config ----------------------
 RCHILLI_API_URL = "https://rest.rchilli.com/RChilliParser/Rchilli/parseResumeBinary"
@@ -136,34 +138,101 @@ def push_to_webhook(data_row, uploaded_file):
         headers = {"Content-Type": "application/json"}
         response = requests.post(WEBHOOK_URL, json=data_row, headers=headers)
         if response.status_code in [200, 201]:
-            st.success("Data and CV saved in CRM successfully!")
+            success_box = st.empty()
+            success_box.success("Data and CV saved in CRM successfully!")
+            time.sleep(2)
+            success_box.empty()
         else:
             st.error(f"Webhook error: {response.status_code} - {response.text}")
     except Exception as e:
         st.error(f"Failed to send data to webhook: {e}")
 
 # ---------------------- Streamlit UI ----------------------
-st.title("CV Parser")
+st.set_page_config(page_title="CV Parser", layout="wide")
+# Custom CSS styling
+st.markdown("""
+    <style>
+        .main-header {
+            background-color: #d21034;
+            padding: 1rem 2rem;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .subheader {
+            padding: 0.5rem 2rem;
+            background-color: #ffffff;
+            font-size: 20px;
+            font-weight: 600;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        div[data-testid="card-container"] {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin: 2rem auto;
+            width: 95%;
+        }
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .save-button > button {
+            background-color: #4DA1FF !important;
+            color: white !important;
+            border-radius: 5px !important;
+            font-weight: bold !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+# Header
+st.markdown('<div class="main-header">Amref Health Africa-Talent Bank</div>', unsafe_allow_html=True)
+st.markdown(f"""
+    <div class="subheader">
+        <span style="color: #000000;">Internal Skills Repository CV Parser</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style="float: right; color: #000000;">Today {datetime.today().strftime('%b %d, %Y')}</span>
+    </div>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
-    employee_no = st.text_input("Employee No:")
-    gender = st.selectbox("Gender", ["Male", "Female"], index=None)
+    employee_no = st.text_input("Employee No: *")
+    gender = st.selectbox("Gender *", ["Male", "Female"], index=None)
     department = st.selectbox("Select Department/Programme", DEPARTMENT_OPTIONS, index=None)
-    country = st.selectbox("Select Country", COUNTRY_OPTIONS, index=None)
-    nationality = st.selectbox("Select Nationality", NATIONALITY_OPTIONS, index=None)
+    country = st.selectbox("Select Business Unit *", COUNTRY_OPTIONS, index=None)
+    nationality = st.selectbox("Select Nationality *", NATIONALITY_OPTIONS, index=None)
 
 upload_disabled = not all([employee_no, gender, department, country, nationality])
 
-with col2:
-    selected_skills = st.multiselect("Select up to 5 skills", SKILLS, max_selections=5)
+with col2:   
+    selected_skills = st.multiselect("Select up to 5 skills *", SKILLS, max_selections=5)
     skill_proficiency = {skill: st.selectbox(f"{skill} Proficiency", PROFICIENCY_LEVELS, key=skill) for skill in selected_skills}
-    uploaded_file = st.file_uploader("Upload a CV (PDF)", type=["pdf"], disabled=upload_disabled)
+    uploaded_file = st.file_uploader("Upload a CV (PDF) *", type=["pdf"], disabled=upload_disabled)
 
 if uploaded_file:
-    st.info("Parsing the CV...")
+    #st.info("Parsing the CV...")
+   # Create a placeholder container for the message
+    message = st.empty()
+
+    # Display the red alert box inside the placeholder
+    message.markdown("""
+    <div style="
+        background-color: #d21034;
+        color: #white;
+        padding: 12px 16px;
+        border-radius: 5px;
+        border: 1px solid #f5c6cb;
+        font-size: 16px;
+        margin-bottom: 20px;
+    ">
+        🔄 Parsing the CV...
+    </div>
+    """, unsafe_allow_html=True)
     parsed_data = parse_resume(uploaded_file)
     extracted_data = extract_fields(parsed_data)
+    message.empty()
     file_path = save_uploaded_file(uploaded_file)
     download_link = generate_download_link(file_path)
 
@@ -211,4 +280,20 @@ if uploaded_file:
         df.to_csv(csv_file_path, index=False, header=True, encoding="utf-8-sig")
         with open(csv_file_path, "rb") as f:
             csv_bytes = f.read()
+        st.markdown("""
+    <style>
+    .stDownloadButton>button {
+        background-color: #c8102e;
+        color: white;
+        border: none;
+        padding: 0.6em 1.2em;
+        border-radius: 6px;
+        font-weight: bold;
+    }
+    .stDownloadButton>button:hover {
+        background-color: #a10d24;
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
         st.download_button("Download Excel File", data=csv_bytes, file_name="Parsed_CV.csv", mime="text/csv")
